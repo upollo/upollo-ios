@@ -1,0 +1,6 @@
+framework module UpolloCore {
+  umbrella header "UpolloCore.h"
+
+  export *
+  module * { export * }
+}

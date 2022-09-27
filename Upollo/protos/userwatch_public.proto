@@ -1,0 +1,295 @@
+syntax = "proto3";
+
+// Protocol buffer definitions used when interacting with Userwatch's customer
+// libraries.
+
+package uwproto;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/postal_address.proto";
+
+
+option go_package = "github.com/userwatch/uw1/protos/uwproto";
+option java_multiple_files = true;
+option java_package = "ai.upollo.proto";
+option objc_class_prefix = "UpProto";
+option swift_prefix = "UpProto_";
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_LOGIN = 1;
+  EVENT_TYPE_REGISTER = 2;
+  EVENT_TYPE_ATTEMPT_PURCHASE = 3;
+  EVENT_TYPE_COMPLETE_PURCHASE = 4;
+  EVENT_TYPE_ATTEMPT_REDEEM_OFFER = 5;
+  EVENT_TYPE_REDEEMED_OFFER = 6;
+  EVENT_TYPE_VERIFY_DEVICE = 7;
+  EVENT_TYPE_REPORT_DEVICE = 8;
+  EVENT_TYPE_ADD_TEAM_MEMBER = 9;
+  EVENT_TYPE_REMOVE_TEAM_MEMBER = 10;
+  EVENT_TYPE_ADD_PAYMENT_METHOD = 11;
+  EVENT_TYPE_ATTEMPT_DELETE_ACCOUNT = 12;
+  EVENT_TYPE_CUSTOMER_DEFINED = 13;
+  EVENT_TYPE_START_SUBSCRIPTION = 14;
+  EVENT_TYPE_END_SUBSCRIPTION = 15;
+  EVENT_TYPE_HEARTBEAT = 16;
+  EVENT_TYPE_PAGE_VISIT = 17;
+  EVENT_TYPE_LOGIN_SUCCESS = 18;
+  EVENT_TYPE_REGISTER_SUCCESS = 19;
+  EVENT_TYPE_INTERNAL = 20;
+}
+
+message AnalysisResponse {
+  // Recommended action based on the Userwatch analysis.
+  Outcome action = 1;
+
+  // All flags the Userwatch analysis identified.
+  // Note any flags with an ignored_until value after the present should
+  // generally be treated as if they were not present. Those ignored flags are
+  // already excluded from factoring into the action Outcome above.
+  repeated Flag flags = 6;
+
+
+  // True if Userwatch detects a VPN is being used.
+  // Deprecated: This is available as in flags as type USING_VPN
+  bool is_using_vpn = 3 [deprecated = true];
+
+  // True if Userwatch detects TOR is being used.
+  // Deprecated: This is available in flags as type USING_TOR
+  bool is_using_tor = 4 [deprecated = true];
+
+
+  // Information Userwatch discerned about the user.
+  UserInfo user_info = 7;
+
+  // Information Userwatch discerned about the device.
+  DeviceInfo device_info = 8;
+
+  // Geographic information discerned by Userwatch.
+  GeoInfo geo_info = 9;
+
+
+  //X TODO: Is this always set, or only for certain outcomes?
+  //X TODO: Does this represent the set of challenges Userwatch currently
+  //X       supports, or specifically the ones which are considered sufficient
+  //X       to deal with the current flags?
+  repeated ChallengeType supported_challenges = 11;
+
+
+  // Unique identifier of the request which resulted in this analysis.
+  string request_id = 10;
+
+  // Event type which resulted in this analysis being done.
+  EventType event_type = 12;
+
+  reserved 2, 5;
+  reserved "trustScore", "history";
+}
+
+message EventResponse {
+  // A token which can be sent to your own server so it can dig into the
+  // assessment of a user following events being reported for tracking by
+  // your client application.
+  string event_token = 1;
+
+  reserved 2;
+  reserved "validation_signature";
+}
+
+enum Outcome {
+  OUTCOME_UNSPECIFIED = 0;
+  OUTCOME_DENY = 1;
+  OUTCOME_CHALLENGE = 2;
+  OUTCOME_PERMIT = 3;
+  OUTCOME_OFFER = 4;
+  OUTCOME_LOG = 5;
+  OUTCOME_CUSTOMER_DEFINED = 6;
+}
+
+message Flag {
+  FlagType type = 1;
+  google.protobuf.Timestamp first_flagged = 2;
+  google.protobuf.Timestamp most_recently_flagged = 3;
+
+  // A nil ignored_until value, or a non-nil value before the present, means
+  // this flag is set and should be treated accordingly.
+  // A non-nil ignored_until value which is after the present indicates this
+  // flag is set, but should be ignored — i.e. treated as if not flagged.
+  // The max time further indicates that the flag should be ignored forever.
+  google.protobuf.Timestamp ignored_until = 4;
+}
+
+message Flags {
+  repeated Flag flags = 1;
+}
+
+// protolint:disable ENUM_FIELD_NAMES_PREFIX
+enum FlagType {
+  FLAG_TYPE_UNSPECIFIED = 0;
+  // ACCOUNT_SHARING indicates that the same account is being shared by 
+  // multiple people, typically on multiple devices.
+  ACCOUNT_SHARING = 1;
+  ACCOUNT_SHARING_SAME_HOUSEHOLD = 2;
+  SUSPECTED_ACCOUNT_COMPROMISE = 3;
+  CREDENTIAL_STUFFING = 4;
+  REPEATED_REDEMPTION = 5;
+  SUSPECTED_FRAUD = 6;
+  // REPEATED_SIGNUP indicates if the current event type is
+  // EventType_EVENT_TYPE_REGISTER and there has previously
+  // been an event of that type from this device or the email/phone
+  // has already been used.
+  REPEATED_SIGNUP = 7;
+  SUSPECTED_BOT = 8;
+  RATE_LIMITED_IP = 9;
+  RATE_LIMITED_DEVICE = 10;
+  BLACKLISTED_IP = 11;
+  BLACKLISTED_DEVICE  = 12; // DEPRECATED
+  ACCOUNT_COMPROMISE_NEW_LOCATION = 13;
+  ACCOUNT_COMPROMISE_NEW_DEVICE = 14;
+  DISPOSABLE_EMAIL = 16;
+  USING_VPN = 17;
+  USING_TOR = 18;
+  DEVICE_BLOCKED_GLOBALLY = 19;
+  DEVICE_BLOCKED_FOR_THIS_USER = 20;
+  INVALID_EMAIL = 21;
+  INVALID_PHONE_NUMBER = 23;
+  INVALID_PHONE_TYPE = 22;
+  // MULTIPLE_ACCOUNTS indicates that the same person is using multiple accounts
+  // typically on the same device.
+  MULTIPLE_ACCOUNTS = 24;
+  ALREADY_USED_EMAIL = 25;
+  ALREADY_USED_PHONE = 26;
+}
+// protolint:enable ENUM_FIELD_NAMES_PREFIX
+
+message UserInfo {
+  string user_id = 1;
+  string user_email = 2;
+  string user_phone = 3;
+  string user_name = 4;
+  string user_image = 5;
+  map<string, string> customer_supplied_values = 6;
+
+  // Address information, this would typically be shipping or home address
+  repeated PhysicalAddress addresses = 7;
+}
+
+message PhysicalAddress {
+  AddressType type = 1;
+  google.type.PostalAddress address = 2;
+}
+
+enum AddressType {
+  ADDRESS_TYPE_UNSPECIFIED = 0;
+  ADDRESS_TYPE_HOME = 1;
+  ADDRESS_TYPE_WORK = 2;
+  ADDRESS_TYPE_OTHER = 3;
+}
+
+message DeviceInfo {
+  string device_id = 1;
+  string os = 2;
+  DeviceClass device_class = 3;
+  string device_name = 4;
+  string user_agent = 5;
+  string browser = 6;
+  google.protobuf.Timestamp last_used = 7;
+  bool blocked_globally = 8;
+
+  // Will always be false if request is unrelated to a single user
+  bool blocked_for_this_user = 9;
+}
+
+enum DeviceClass {
+  // protolint:disable ENUM_FIELD_NAMES_ZERO_VALUE_END_WITH
+  DEVICE_CLASS_DESKTOP = 0;
+  // protolint:enable ENUM_FIELD_NAMES_ZERO_VALUE_END_WITH
+  DEVICE_CLASS_MOBILE = 1;
+  DEVICE_CLASS_TABLET = 2;
+  DEVICE_CLASS_GOODBOT = 3;
+  DEVICE_CLASS_BADBOT = 4;
+  DEVICE_CLASS_UNKNOWN = 5;
+}
+
+message GeoInfo {
+  LatLng geo_ip_latlng = 1;
+  string geo_ip_city = 2;
+  string geo_ip_subregion = 3;
+  string geo_ip_region = 4;
+  google.protobuf.Timestamp last_here = 5;
+}
+
+message LatLng {
+  // The latitude in degrees. It must be in the range [-90.0, +90.0].
+  double latitude = 1;
+
+  // The longitude in degrees. It must be in the range [-180.0, +180.0].
+  double longitude = 2;
+}
+
+enum ChallengeType {
+  CHALLENGE_TYPE_UNSPECIFIED = 0;
+  CHALLENGE_TYPE_WEBAUTHN = 1;
+  CHALLENGE_TYPE_SMS = 2;
+  CHALLENGE_TYPE_EMAIL = 3;
+  CHALLENGE_TYPE_BANKSY = 4;
+}
+
+message Event {
+  oneof event_type {
+    uwproto.EventType event_type_enum = 1;
+    string customer_defined_event_type = 2;
+  }
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message CheckEmailResponse {
+  bool valid = 1;
+  EmailInvalidReason reason = 2;
+}
+
+message CheckPasswordResponse {
+  bool compromised = 1;
+}
+
+message CheckPhoneResponse {
+  bool valid = 1;
+  PhoneInvalidReason reason = 2;
+  string country_code = 3;
+  PhoneLineType line_type = 4;
+  string carrier = 5;
+  string clean_number = 6;
+}
+
+enum EmailInvalidReason {
+  EMAIL_INVALID_REASON_UNSPECIFIED = 0;
+  EMAIL_INVALID_REASON_FORMAT = 1;
+  EMAIL_INVALID_REASON_INVALID_DOMAIN = 2;
+  EMAIL_INVALID_REASON_DISPOSABLE = 3;
+  EMAIL_INVALID_REASON_INVALID_USER = 4;
+}
+
+enum PhoneLineType {
+  PHONE_LINE_TYPE_UNSPECIFIED = 0;
+  PHONE_LINE_TYPE_MOBILE = 1;
+  PHONE_LINE_TYPE_LANDLINE = 2;
+  PHONE_LINE_TYPE_VOIP = 3;
+  PHONE_LINE_TYPE_INVALID = 4;
+  PHONE_LINE_TYPE_PREPAID = 5;
+  PHONE_LINE_TYPE_OTHER = 6;
+}
+
+enum PhoneInvalidReason {
+  PHONE_INVALID_REASON_UNSPECIFIED = 0;
+  PHONE_INVALID_REASON_NUMBER_FORMAT = 1;
+  PHONE_INVALID_REASON_INACTIVE_LINE = 2;
+  PHONE_INVALID_REASON_VOIP = 3;
+  PHONE_INVALID_REASON_INVALID_TYPE = 4;
+  PHONE_INVALID_REASON_DISPOSABLE_PHONE = 5;
+}
+
+enum NullableBool {
+  NULLABLE_BOOL_UNSPECIFIED = 0;
+  NULLABLE_BOOL_FALSE = 1;
+  NULLABLE_BOOL_TRUE = 2;
+}
